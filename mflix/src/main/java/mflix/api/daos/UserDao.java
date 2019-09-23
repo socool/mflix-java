@@ -33,7 +33,7 @@ public class UserDao extends AbstractMFlixDao {
   private final MongoCollection<User> usersCollection;
   //TODO> Ticket: User Management - do the necessary changes so that the sessions collection
   //returns a Session object
-  private final MongoCollection<Document> sessionsCollection;
+  private final MongoCollection<Session> sessionsCollection;
 
   private final Logger log;
 
@@ -50,7 +50,7 @@ public class UserDao extends AbstractMFlixDao {
     log = LoggerFactory.getLogger(this.getClass());
     //TODO> Ticket: User Management - implement the necessary changes so that the sessions
     // collection returns a Session objects instead of Document objects.
-    sessionsCollection = db.getCollection("sessions");
+    sessionsCollection = db.getCollection("sessions",Session.class).withCodecRegistry(pojoCodecRegistry);
   }
 
   /**
@@ -78,7 +78,24 @@ public class UserDao extends AbstractMFlixDao {
   public boolean createUserSession(String userId, String jwt) {
     //TODO> Ticket: User Management - implement the method that allows session information to be
     // stored in it's designated collection.
-    return false;
+//    return false;
+
+    Document sessionDoc = new Document();
+    sessionDoc.put("user_id",userId);
+    sessionDoc.put("jwt",jwt);
+
+    UpdateOptions options = new UpdateOptions();
+    options.upsert(true);
+
+    Bson query = new Document("user_id", userId);
+
+    // and adding those options to the update method.
+    UpdateResult resultWithUpsert =
+            this.sessionsCollection.updateOne(query, new Document("$set", sessionDoc), options);
+    if(resultWithUpsert.isModifiedCountAvailable())
+      return true;
+    else
+      return false;
     //TODO > Ticket: Handling Errors - implement a safeguard against
     // creating a session with the same jwt token.
   }
@@ -104,7 +121,8 @@ public class UserDao extends AbstractMFlixDao {
   public Session getUserSession(String userId) {
     //TODO> Ticket: User Management - implement the method that returns Sessions for a given
     // userId
-    return null;
+    Bson queryFilter = new Document("user_id",userId);
+    return this.sessionsCollection.find(queryFilter).iterator().tryNext();
   }
 
   public boolean deleteUserSessions(String userId) {
