@@ -92,6 +92,7 @@ public class UserDao extends AbstractMFlixDao {
     // and adding those options to the update method.
     UpdateResult resultWithUpsert =
             this.sessionsCollection.updateOne(query, new Document("$set", sessionDoc), options);
+    log.info("User modified count:"+resultWithUpsert.getModifiedCount());
     if(resultWithUpsert.isModifiedCountAvailable())
       return true;
     else
@@ -107,9 +108,9 @@ public class UserDao extends AbstractMFlixDao {
    * @return User object or null.
    */
   public User getUser(String email) {
-    User user = null;
     //TODO> Ticket: User Management - implement the query that returns the first User object.
-    return user;
+    Bson queryFilter = new Document("email",email);
+    return this.usersCollection.find(queryFilter).iterator().tryNext();
   }
 
   /**
@@ -127,7 +128,13 @@ public class UserDao extends AbstractMFlixDao {
 
   public boolean deleteUserSessions(String userId) {
     //TODO> Ticket: User Management - implement the delete user sessions method
-    return false;
+    Bson queryFilter = new Document("user_id",userId);
+    DeleteResult result = this.sessionsCollection.deleteOne(queryFilter);
+    this.log.info("Delete session count:"+result.getDeletedCount());
+    if(result.getDeletedCount() == 1)
+      return true;
+    else
+      return false;
   }
 
   /**
@@ -141,7 +148,17 @@ public class UserDao extends AbstractMFlixDao {
     //TODO> Ticket: User Management - implement the delete user method
     //TODO > Ticket: Handling Errors - make this method more robust by
     // handling potential exceptions.
-    return false;
+
+    Bson queryFilter = new Document("email",email);
+    DeleteResult result = this.usersCollection.deleteOne(queryFilter);
+    log.info("Delete User Count:"+result.getDeletedCount());
+    if(result.getDeletedCount() == 1){
+      this.deleteUserSessions(email);
+      return true;
+    } else{
+      return false;
+    }
+
   }
 
   /**
