@@ -2,6 +2,7 @@ package mflix.api.controllers;
 
 import mflix.api.models.Movie;
 import mflix.api.services.MoviesService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Size;
 import java.util.*;
+import java.util.logging.Logger;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -20,6 +22,8 @@ public class MovieController extends ApiController {
 
   @Value("${api.movies.movies_per_page}")
   private int MOVIES_PER_PAGE = 20;
+
+  private final Logger log = Logger.getLogger(this.getClass().getName());
 
   public MovieController() {
     super();
@@ -142,6 +146,7 @@ public class MovieController extends ApiController {
       results.put("error", "email not found");
       return ResponseEntity.badRequest().body(results);
     }
+    log.info(String.format("Comments body:%s email:%s results:%s",body,email,results));
     if (!moviesService.updateMovieComment(body, email, results)) {
       return ResponseEntity.badRequest().body(results);
     }

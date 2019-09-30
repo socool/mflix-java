@@ -1,14 +1,12 @@
 package mflix.api.daos;
 
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoException;
 import com.mongodb.MongoWriteException;
 import com.mongodb.ReadConcern;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Aggregates;
-import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.Sorts;
-import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.*;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import mflix.api.models.Comment;
@@ -18,17 +16,21 @@ import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
-import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.logging.Logger;
 
+import static com.mongodb.client.model.Aggregates.limit;
+import static com.mongodb.client.model.Aggregates.sortByCount;
+import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Updates.combine;
+import static com.mongodb.client.model.Updates.set;
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 
@@ -41,13 +43,12 @@ public class CommentDao extends AbstractMFlixDao {
 
   private CodecRegistry pojoCodecRegistry;
 
-  private final Logger log;
+  private final java.util.logging.Logger log = Logger.getLogger(this.getClass().getName());
 
   @Autowired
   public CommentDao(
       MongoClient mongoClient, @Value("${spring.mongodb.database}") String databaseName) {
     super(mongoClient, databaseName);
-    log = LoggerFactory.getLogger(this.getClass());
     this.db = this.mongoClient.getDatabase(MFLIX_DATABASE);
     this.pojoCodecRegistry =
         fromRegistries(
@@ -79,12 +80,20 @@ public class CommentDao extends AbstractMFlixDao {
    * returns the resulting Comment object.
    */
   public Comment addComment(Comment comment) {
-
-    // TODO> Ticket - Update User reviews: implement the functionality that enables adding a new
-    // comment.
     // TODO> Ticket - Handling Errors: Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return null;
+    if(!Optional.ofNullable(comment.getId()).isPresent()) {
+      throw new IncorrectDaoOperation("Comment id cannot be null");
+    }
+
+    try {
+      commentCollection.insertOne(comment);
+    } catch (MongoException e) {
+      log.info("An error ocurred while trying to insert a Comment.");
+      return null;
+    }
+
+    return comment;
   }
 
   /**
@@ -102,11 +111,22 @@ public class CommentDao extends AbstractMFlixDao {
    */
   public boolean updateComment(String commentId, String text, String email) {
 
-    // TODO> Ticket - Update User reviews: implement the functionality that enables updating an
-    // user own comments
-    // TODO> Ticket - Handling Errors: Implement a try catch block to
-    // handle a potential write exception when given a wrong commentId.
-    return false;
+    UpdateResult ur = null;
+
+    try {
+      ur = commentCollection.updateOne(
+              and(
+                      eq("_id", new ObjectId(commentId)),
+                      eq("email", email)),
+              combine(
+                      set("text", text),
+                      set("date", new Date())));
+    } catch (MongoException e) {
+      log.info("An error ocurred while trying to update a Comment.");
+      return false;
+    }
+
+    return ur.getMatchedCount() > 0 && ur.getModifiedCount() > 0;
   }
 
   /**
@@ -122,7 +142,26 @@ public class CommentDao extends AbstractMFlixDao {
     // TIP: make sure to match only users that own the given commentId
     // TODO> Ticket Handling Errors - Implement a try catch block to
     // handle a potential write exception when given a wrong commentId.
-    return false;
+    if(!Optional.ofNullable(commentId).isPresent()) {
+      throw new IllegalArgumentException("Commend id cannot be null");
+    }
+
+    DeleteResult dr = null;
+
+    try {
+      dr = commentCollection
+              .deleteOne(
+                      and(
+                              eq("_id", new ObjectId(commentId)),
+                              eq("email", email)));
+    } catch (MongoException e) {
+      log.info("An error ocurred while trying to delete a Comment.");
+      return false;
+    }
+
+    // TODO> Ticket Handling Errors - Implement a try catch block to
+    // handle a potential write exception when given a wrong commentId.
+    return dr.getDeletedCount() > 0;
   }
 
   /**
@@ -140,6 +179,15 @@ public class CommentDao extends AbstractMFlixDao {
     // // guarantee for the returned documents. Once a commenter is in the
     // // top 20 of users, they become a Critic, so mostActive is composed of
     // // Critic objects.
+    List<Bson> pipeline = Arrays.asList(
+            sortByCount("$email"),
+            limit(20));
+
+    commentCollection
+            .withReadConcern(ReadConcern.MAJORITY)
+            .aggregate(pipeline, Critic.class)
+            .iterator()
+            .forEachRemaining(mostActive::add);
     return mostActive;
   }
 }

@@ -61,7 +61,11 @@ public class UserDao extends AbstractMFlixDao {
    */
   public boolean addUser(User user) {
     //TODO > Ticket: Durable Writes -  you might want to use a more durable write concern here!
-    usersCollection.insertOne(user);
+    try {
+      usersCollection.insertOne(user);
+    } catch (Exception e) {
+      throw new IncorrectDaoOperation("IncorrectDaoOperation");
+    }
     return true;
     //TODO > Ticket: Handling Errors - make sure to only add new users
     // and not users that already exist.
@@ -174,6 +178,22 @@ public class UserDao extends AbstractMFlixDao {
     // be updated.
     //TODO > Ticket: Handling Errors - make this method more robust by
     // handling potential exceptions when updating an entry.
-    return false;
+
+    UpdateOptions options = new UpdateOptions();
+    options.upsert(true);
+
+    User user = this.getUser(email);
+    user.setPreferences((Map<String, String>) userPreferences);
+
+    Bson query = new Document("email", email);
+
+    // and adding those options to the update method.
+    UpdateResult resultWithUpsert =
+            this.usersCollection.updateOne(query, new Document("$set", user), options);
+    log.info("User modified count:"+resultWithUpsert.getModifiedCount());
+    if(resultWithUpsert.isModifiedCountAvailable())
+      return true;
+    else
+      return false;
   }
 }

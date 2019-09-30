@@ -1,5 +1,6 @@
 package mflix.api.services;
 
+import mflix.api.controllers.MovieController;
 import mflix.api.daos.CommentDao;
 import mflix.api.daos.MovieDao;
 import mflix.api.daos.MovieDocumentMapper;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,18 +28,36 @@ public class MoviesService {
   @Autowired private CommentDao commentDao;
   @Autowired private UserDao userDao;
 
+  private final Logger log = Logger.getLogger(this.getClass().getName());
+
   public MoviesService() {
     super();
   }
+  /**
+   * movieId needs to be a hexadecimal string value. Otherwise it won't be possible to translate to
+   * an ObjectID
+   *
+   * @param movieId - Movie object identifier
+   * @return true if valid movieId.
+   */
+  private boolean validIdValue(String movieId) {
+    //TODO> Ticket: Handling Errors - implement a way to catch a
+    //any potential exceptions thrown while validating a movie id.
+    //Check out this method's use in the method that follows.
 
+    return Objects.nonNull(movieId) && ObjectId.isValid(movieId);
+  }
   /**
    * Finds the Movie object that matches the `id` value.
    *
    * @param id - matching movie id.
    * @return Movie object or null if no match applies.
    */
+  @SuppressWarnings("UnnecessaryLocalVariable")
   public Movie getMovie(String id) {
-
+    if (!validIdValue(id)) {
+      return null;
+    }
     Movie movie = MovieDocumentMapper.mapToMovie(movieDao.getMovie(id));
     if (movie.getId() == null || movie.getId().isEmpty()) {
       return null;
@@ -247,6 +267,7 @@ public class MoviesService {
     updateComment.setId(commentBody.get("comment_id"));
     updateComment.setDate(new Date());
     updateComment.setText(commentBody.get("updated_comment"));
+    log.info(String.format("commentId:%s text:%s email:%s",updateComment.getId(),updateComment.getText(),email));
     if (!commentDao.updateComment(updateComment.getId(), updateComment.getText(), email)) {
       // check if the email matches the current user
       Comment currentComment = commentDao.getComment(updateComment.getId());

@@ -16,7 +16,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import javax.print.Doc;
 import java.util.Date;
 import java.util.List;
 
@@ -71,7 +70,7 @@ public class GetCommentsTest extends TicketTest {
     Assert.assertEquals(
         "Comments list size does not match expected", expectedSize, commentDocs.size());
 
-    String expectedName = "Arya Stark";
+    String expectedName = "Anthony Smith";
     Assert.assertEquals(
         "Expected `name` field does match: check your " + "getMovie() comments sort order.",
         expectedName,
